@@ -174,7 +174,9 @@ if user_input.strip():
     if st.session_state.request_count >= DAY_LIMIT-1:
         st.error("🛑 Daily Gemini free quota reached. Come back tomorrow.")
         st.stop()
-    chat = genai.Chat(model=MODEL)
+    model_instance = genai.GenerativeModel(MODEL)
+chat = model_instance.start_chat()
+
     try:
         response = chat.send_message(user_input)
         reply = response.text
