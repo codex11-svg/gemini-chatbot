@@ -99,7 +99,7 @@ st.markdown("<hr class='hr-sep' />", unsafe_allow_html=True)
 # === TYPING INDICATOR ===
 TYPING_HTML = """
 <div id="typing-indicator" style="font-family: monospace; color: #12fff7; font-size: 1.05em;">
-  Gemini is typing<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span>
+  Nihal's Chatbot is typing<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span>
 </div>
 <style>
 @keyframes blink {
