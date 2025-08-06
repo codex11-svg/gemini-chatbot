@@ -91,7 +91,7 @@ st.session_state.theme = theme
 # === HEADER (Minimal) ===
 st.markdown(
     f"<div class='theme-bar'>"
-    f"<span>🤖 Gemini {'Cyber' if theme=='Cyberpunk' else ('Classic' if theme=='Classic' else 'Lite')} Chatbot</span>"
+    f"<span>🤖 Gemini {'Cyber' if theme=='Cyberpunk' else ('Classic' if theme=='Classic' else 'Lite')} Chatbot By Nihal</span>"
     f"</div>", unsafe_allow_html=True
 )
 st.markdown("<hr class='hr-sep' />", unsafe_allow_html=True)
@@ -179,6 +179,6 @@ st.markdown("<hr class='hr-sep' />", unsafe_allow_html=True)
 st.markdown(
     "<p style='color:#232d8c;font-size:0.93em;text-align:center;'>"
     "Experience seamless AI chat, your style—Cyberpunk, Light, or Classic.<br>"
-    "Built with ❤️ in Python and Streamlit."
+    "Built with ❤️ By Nihal  in Python and Streamlit."
     "</p>", unsafe_allow_html=True
 )
