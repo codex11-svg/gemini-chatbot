@@ -1,11 +1,12 @@
 import streamlit as st
 import google.generativeai as genai
 import time
+import re
 
 # ===================
 # Page Config
 # ===================
-st.set_page_config(page_title="Gemini Chatbot", layout="centered", page_icon="🤖")
+st.set_page_config(page_title="Cyberpunk Gemini Chat", layout="centered", page_icon="🤖")
 
 # ===================
 # Load API Key
@@ -20,52 +21,74 @@ genai.configure(api_key=API_KEY)
 MODEL = "gemini-1.5-flash"
 
 # ===================
-# Theme Selection
+# Login System
 # ===================
-if "theme" not in st.session_state:
-    st.session_state.theme = "Cyberpunk"
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
 
-theme_choice = st.sidebar.radio(
-    "🎨 Choose Theme",
-    ["Cyberpunk", "Minimalist", "Classic"],
-    index=["Cyberpunk", "Minimalist", "Classic"].index(st.session_state.theme)
-)
-
-if theme_choice != st.session_state.theme:
-    st.session_state.theme = theme_choice
-    st.rerun()
+if not st.session_state.logged_in:
+    st.markdown("<h1 style='text-align:center;color:#00ffcc;'>🔐 Cyberpunk Gemini Chat</h1>", unsafe_allow_html=True)
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
+    if st.button("Login"):
+        if username == st.secrets.get("CHAT_USERNAME", "admin") and password == st.secrets.get("CHAT_PASSWORD", "1234"):
+            st.session_state.logged_in = True
+            st.rerun()
+        else:
+            st.error("❌ Invalid username or password")
+    st.stop()
 
 # ===================
-# Improved Themes
+# Cyberpunk Theme + Animation
 # ===================
-THEMES = {
-    "Cyberpunk": """
-        <style>
-        body { background: linear-gradient(135deg, #0f0f0f, #1a0033); color: #00ffcc; font-family: 'Segoe UI', sans-serif; }
-        .chat-bubble { background: rgba(0,255,204,0.07); border: 1px solid #00ffcc; box-shadow: 0 0 15px rgba(0,255,204,0.4); border-radius: 15px; }
-        .stTextInput>div>div>input { background: rgba(0,0,0,0.5); color: #00ffcc; border-radius: 25px; padding: 12px; border: 1px solid #00ffcc; transition: all 0.3s ease; }
-        .stTextInput>div>div>input:focus { box-shadow: 0 0 15px #00ffcc; }
-        </style>
-    """,
-    "Minimalist": """
-        <style>
-        body { background: linear-gradient(180deg, #ffffff, #f4f7fb); color: #222; font-family: 'Segoe UI', sans-serif; }
-        .chat-bubble { background: rgba(255,255,255,0.85); backdrop-filter: blur(8px); border: 1px solid rgba(0,0,0,0.05); box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-radius: 15px; }
-        .stTextInput>div>div>input { background: rgba(255,255,255,0.9); backdrop-filter: blur(6px); color: #222; border-radius: 25px; padding: 12px; border: 1px solid #ccc; transition: all 0.3s ease; }
-        .stTextInput>div>div>input:focus { border-color: #4a90e2; box-shadow: 0 0 10px rgba(74,144,226,0.3); }
-        </style>
-    """,
-    "Classic": """
-        <style>
-        body { background: linear-gradient(180deg, #fdf6e3, #f4e1c1); color: #2b2b2b; font-family: 'Georgia', serif; }
-        .chat-bubble { background: #fff8f0; border: 1px solid #d1b894; box-shadow: 0 2px 8px rgba(0,0,0,0.1), inset 0 1px 0 #fff; border-radius: 15px; }
-        .stTextInput>div>div>input { background: #fffdf8; color: #2b2b2b; border-radius: 25px; padding: 12px; border: 1px solid #a67c52; transition: all 0.3s ease; }
-        .stTextInput>div>div>input:focus { border-color: #a67c52; box-shadow: 0 0 12px rgba(166,124,82,0.4); }
-        </style>
-    """
+CYBERPUNK_CSS = """
+<style>
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
 }
-
-st.markdown(THEMES[st.session_state.theme], unsafe_allow_html=True)
+.chat-bubble {
+    animation: fadeIn 0.4s ease forwards;
+}
+body {
+    background: linear-gradient(135deg, #0f0f0f, #1a0033);
+    color: #00ffcc;
+    font-family: 'Segoe UI', sans-serif;
+}
+.chat-bubble {
+    background: rgba(0,255,204,0.07);
+    border: 1px solid #00ffcc;
+    box-shadow: 0 0 15px rgba(0,255,204,0.4);
+    border-radius: 15px;
+    padding: 12px;
+    margin: 6px;
+    max-width: 80%;
+    position: relative;
+}
+.copy-btn {
+    position: absolute;
+    top: 5px;
+    right: 8px;
+    background: none;
+    border: none;
+    color: #00ffcc;
+    cursor: pointer;
+    font-size: 14px;
+}
+.stTextInput>div>div>input {
+    background: rgba(0,0,0,0.5);
+    color: #00ffcc;
+    border-radius: 25px;
+    padding: 12px;
+    border: 1px solid #00ffcc;
+    transition: all 0.3s ease;
+}
+.stTextInput>div>div>input:focus {
+    box-shadow: 0 0 15px #00ffcc;
+}
+</style>
+"""
+st.markdown(CYBERPUNK_CSS, unsafe_allow_html=True)
 
 # ===================
 # Session State
@@ -79,53 +102,53 @@ if "messages" not in st.session_state:
 def stream_gemini_reply(prompt):
     try:
         model = genai.GenerativeModel(MODEL)
-        try:
-            response = model.generate_content(prompt, stream=True)
-            reply_text = ""
-            placeholder = st.empty()
-            for chunk in response:
-                if hasattr(chunk, "text") and chunk.text:
-                    reply_text += chunk.text
-                    placeholder.markdown(
-                        f"<div class='chat-bubble' style='padding:12px; margin:6px; max-width:80%;'><b>🤖</b> {reply_text}▌</div>",
-                        unsafe_allow_html=True
-                    )
-                    time.sleep(0.02)
-            placeholder.markdown(
-                f"<div class='chat-bubble' style='padding:12px; margin:6px; max-width:80%;'><b>🤖</b> {reply_text}</div>",
-                unsafe_allow_html=True
-            )
-            return reply_text.strip()
-        except TypeError:
-            response = model.generate_content(prompt)
-            return response.text.strip()
+        response = model.generate_content(prompt, stream=True)
+        reply_text = ""
+        placeholder = st.empty()
+        for chunk in response:
+            if hasattr(chunk, "text") and chunk.text:
+                reply_text += chunk.text
+                placeholder.markdown(
+                    f"<div class='chat-bubble'><b>🤖</b> {reply_text}▌</div>",
+                    unsafe_allow_html=True
+                )
+                time.sleep(0.02)
+        placeholder.markdown(format_with_copy_button(f"🤖 {reply_text}"), unsafe_allow_html=True)
+        return reply_text.strip()
     except Exception as e:
         return f"⚠️ **Error from Gemini API:** {str(e)}"
+
+# ===================
+# Format with Copy Button
+# ===================
+def format_with_copy_button(text):
+    escaped = text.replace("'", "\\'").replace("\n", "\\n").replace("\r", "")
+    return f"""
+    <div class='chat-bubble'>
+        <b>{text[0:2]}</b> {text[2:]}
+        <button class='copy-btn' onclick="navigator.clipboard.writeText('{escaped}')">📋</button>
+    </div>
+    """
 
 # ===================
 # Display Messages
 # ===================
 for message in st.session_state.messages:
-    avatar = "👤" if message["role"] == "user" else "🤖"
-    st.markdown(
-        f"<div class='chat-bubble' style='padding:12px; margin:6px; max-width:80%;'><b>{avatar}</b> {message['content']}</div>",
-        unsafe_allow_html=True
-    )
+    if message["role"] == "assistant":
+        st.markdown(format_with_copy_button(f"🤖 {message['content']}"), unsafe_allow_html=True)
+    else:
+        st.markdown(f"<div class='chat-bubble'><b>👤</b> {message['content']}</div>", unsafe_allow_html=True)
 
 # ===================
 # Chat Input
 # ===================
 with st.form("chat_form", clear_on_submit=True):
-    user_input = st.text_input("💬 Type your message...", key="user_input")
+    user_input = st.text_input("💬 Type your message...")
     send = st.form_submit_button("Send 🚀")
 
 if send and user_input:
-    # Save user message
     st.session_state.messages.append({"role": "user", "content": user_input})
-
-    # Get bot reply
     reply_text = stream_gemini_reply(user_input)
     st.session_state.messages.append({"role": "assistant", "content": reply_text})
-
     st.rerun()
     
