@@ -25,7 +25,8 @@ theme_choice = st.sidebar.selectbox(
 # If theme changed → rerun
 if theme_choice != st.session_state.theme:
     st.session_state.theme = theme_choice
-    st.experimental_rerun()
+    st.rerun()
+
 
 theme = st.session_state.theme
 
