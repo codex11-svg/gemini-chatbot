@@ -3,9 +3,9 @@ import google.generativeai as genai
 import time
 
 # ===================
-# Streamlit Page Config
+# Page Config
 # ===================
-st.set_page_config(page_title="Gemini Chatbot", layout="centered")
+st.set_page_config(page_title="Gemini Chatbot", layout="centered", page_icon="🤖")
 
 # ===================
 # Load API Key
@@ -20,7 +20,7 @@ genai.configure(api_key=API_KEY)
 MODEL = "gemini-1.5-flash"
 
 # ===================
-# Theme Setup
+# Theme Selection
 # ===================
 if "theme" not in st.session_state:
     st.session_state.theme = "Cyberpunk"
@@ -38,23 +38,26 @@ if theme_choice != st.session_state.theme:
 THEMES = {
     "Cyberpunk": """
         <style>
-        body { background-color: #0d0d0d; color: #00ffcc; font-family: 'Segoe UI', sans-serif; }
-        .chat-bubble { background: rgba(0,255,204,0.1); border: 1px solid #00ffcc; }
-        .stTextInput>div>div>input { background: #111; color: #00ffcc; border-radius: 25px; padding: 10px; border: 1px solid #00ffcc; }
+        body { background: linear-gradient(135deg, #0f0f0f, #1a0033); color: #00ffcc; font-family: 'Segoe UI', sans-serif; }
+        .chat-bubble { background: rgba(0,255,204,0.07); border: 1px solid #00ffcc; box-shadow: 0 0 15px rgba(0,255,204,0.4); }
+        .stTextInput>div>div>input { background: rgba(0,0,0,0.5); color: #00ffcc; border-radius: 25px; padding: 12px; border: 1px solid #00ffcc; transition: all 0.3s ease; }
+        .stTextInput>div>div>input:focus { box-shadow: 0 0 15px #00ffcc; }
         </style>
     """,
     "Minimalist": """
         <style>
-        body { background-color: #fefefe; color: #000; font-family: 'Segoe UI', sans-serif; }
-        .chat-bubble { background: #f5f5f5; border: 1px solid #ddd; }
-        .stTextInput>div>div>input { background: #fff; color: #000; border-radius: 25px; padding: 10px; border: 1px solid #ccc; }
+        body { background-color: #f9f9f9; color: #222; font-family: 'Segoe UI', sans-serif; }
+        .chat-bubble { background: white; border: 1px solid #ddd; box-shadow: 0 2px 6px rgba(0,0,0,0.05); }
+        .stTextInput>div>div>input { background: white; color: #222; border-radius: 25px; padding: 12px; border: 1px solid #ccc; transition: all 0.3s ease; }
+        .stTextInput>div>div>input:focus { border-color: #4a90e2; box-shadow: 0 0 10px rgba(74,144,226,0.5); }
         </style>
     """,
     "Classic": """
         <style>
-        body { background-color: #e9ecef; color: #212529; font-family: 'Georgia', serif; }
-        .chat-bubble { background: #fff; border: 1px solid #ccc; }
-        .stTextInput>div>div>input { background: #fff; color: #212529; border-radius: 25px; padding: 10px; border: 1px solid #ccc; }
+        body { background-color: #ececec; color: #2b2b2b; font-family: 'Georgia', serif; }
+        .chat-bubble { background: #fff8f0; border: 1px solid #ccc; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .stTextInput>div>div>input { background: white; color: #2b2b2b; border-radius: 25px; padding: 12px; border: 1px solid #bbb; transition: all 0.3s ease; }
+        .stTextInput>div>div>input:focus { border-color: #a67c52; box-shadow: 0 0 10px rgba(166,124,82,0.5); }
         </style>
     """
 }
@@ -68,7 +71,7 @@ if "messages" not in st.session_state:
     st.session_state.messages = []
 
 # ===================
-# Gemini API Call
+# Gemini Streaming
 # ===================
 def stream_gemini_reply(prompt):
     try:
@@ -76,11 +79,22 @@ def stream_gemini_reply(prompt):
         try:
             response = model.generate_content(prompt, stream=True)
             reply_text = ""
+            placeholder = st.empty()
             for chunk in response:
                 if hasattr(chunk, "text") and chunk.text:
                     reply_text += chunk.text
+                    placeholder.markdown(
+                        f"<div class='chat-bubble' style='padding:12px; margin:6px; border-radius:15px; max-width:80%;'><b>🤖</b> {reply_text}▌</div>",
+                        unsafe_allow_html=True
+                    )
+                    time.sleep(0.02)
+            placeholder.markdown(
+                f"<div class='chat-bubble' style='padding:12px; margin:6px; border-radius:15px; max-width:80%;'><b>🤖</b> {reply_text}</div>",
+                unsafe_allow_html=True
+            )
             return reply_text.strip()
         except TypeError:
+            # Fallback if streaming unsupported
             response = model.generate_content(prompt)
             return response.text.strip()
     except Exception as e:
@@ -92,11 +106,10 @@ def stream_gemini_reply(prompt):
 for message in st.session_state.messages:
     avatar = "👤" if message["role"] == "user" else "🤖"
     with st.container():
-        st.markdown(f"""
-        <div class='chat-bubble' style='padding:12px; margin:6px; border-radius:15px; max-width:80%;'>
-            <b>{avatar}</b> {message["content"]}
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(
+            f"<div class='chat-bubble' style='padding:12px; margin:6px; border-radius:15px; max-width:80%;'><b>{avatar}</b> {message['content']}</div>",
+            unsafe_allow_html=True
+        )
 
 # ===================
 # Chat Input
@@ -106,22 +119,11 @@ with st.form("chat_form", clear_on_submit=True):
     send = st.form_submit_button("Send 🚀")
 
 if send and user_input:
-    # Show user message
+    # User message
     st.session_state.messages.append({"role": "user", "content": user_input})
 
-    # Typing indicator
-    with st.container():
-        typing_box = st.empty()
-        typing_box.markdown(
-            "<i>🤖 Gemini is typing...</i>",
-            unsafe_allow_html=True
-        )
-        time.sleep(0.5)
-
-    # Get model reply
+    # Bot reply (streamed)
     reply_text = stream_gemini_reply(user_input)
-    typing_box.empty()
-
     st.session_state.messages.append({"role": "assistant", "content": reply_text})
+
     st.rerun()
-    
