@@ -7,6 +7,7 @@ import time
 MODEL = "gemini-2.5-flash"
 DAY_LIMIT = 25
 WAIT_SECONDS = 12
+TYPING_DELAY = 0.015
 
 BOT_AVATAR = "https://cdn-icons-png.flaticon.com/512/4712/4712101.png"
 USER_AVATAR = "https://cdn-icons-png.flaticon.com/512/3177/3177440.png"
@@ -22,43 +23,91 @@ if "request_count" not in st.session_state:
 if "last_request_time" not in st.session_state:
     st.session_state.last_request_time = 0
 
-# ==== CSS STYLE ====
+# ==== THEME SELECT ====
+theme = st.sidebar.selectbox("🎨 Choose Theme", ["Cyberpunk", "Minimalist", "Classic"])
+
+# ==== THEME CSS ====
+if theme == "Cyberpunk":
+    st.markdown("""
+    <style>
+    body {background-color: #161A23;}
+    .chat-bubble-user {
+        background: linear-gradient(95deg, #141828 80%, #0fa 180%);
+        color: #12fff7;
+        border-radius: 16px;
+        padding: 10px 18px;
+        max-width: 70%;
+        font-family: monospace;
+        font-size: 1.1em;
+        border-bottom-right-radius: 3px;
+        border-top-left-radius: 3px;
+        box-shadow: 0 2px 6px #00ffe033;
+    }
+    .chat-bubble-bot {
+        background: linear-gradient(95deg, #212121 70%, #ffe57f44 160%);
+        color: #ffe57f;
+        border-radius: 16px;
+        padding: 10px 18px;
+        max-width: 70%;
+        font-family: monospace;
+        font-size: 1.1em;
+        border-bottom-left-radius: 3px;
+        border-top-right-radius: 3px;
+        box-shadow: 0 2px 6px #fff6b022;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+elif theme == "Minimalist":
+    st.markdown("""
+    <style>
+    body {background-color: #ffffff;}
+    .chat-bubble-user {
+        background: #f0f0f0;
+        color: #222;
+        border-radius: 12px;
+        padding: 10px 18px;
+        max-width: 70%;
+        font-family: sans-serif;
+    }
+    .chat-bubble-bot {
+        background: #e6f0ff;
+        color: #003366;
+        border-radius: 12px;
+        padding: 10px 18px;
+        max-width: 70%;
+        font-family: sans-serif;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+elif theme == "Classic":
+    st.markdown("""
+    <style>
+    body {background-color: #f5f5dc;}
+    .chat-bubble-user {
+        background: #dcdcdc;
+        color: black;
+        border-radius: 12px;
+        padding: 10px 18px;
+        max-width: 70%;
+        font-family: serif;
+    }
+    .chat-bubble-bot {
+        background: #fffacd;
+        color: black;
+        border-radius: 12px;
+        padding: 10px 18px;
+        max-width: 70%;
+        font-family: serif;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+# Typing indicator style
 st.markdown("""
 <style>
-body {background-color: #161A23;}
-.chat-container {max-width: 700px; margin: auto;}
-.chat-bubble-user {
-    background: linear-gradient(95deg, #141828 80%, #0fa 180%);
-    color: #12fff7;
-    border-radius: 16px;
-    padding: 10px 18px;
-    max-width: 70%;
-    font-family: monospace;
-    font-size: 1.1em;
-    border-bottom-right-radius: 3px;
-    border-top-left-radius: 3px;
-    box-shadow: 0 2px 6px #00ffe033;
-    animation: fadeIn 0.4s ease-in-out;
-}
-.chat-bubble-bot {
-    background: linear-gradient(95deg, #212121 70%, #ffe57f44 160%);
-    color: #ffe57f;
-    border-radius: 16px;
-    padding: 10px 18px;
-    max-width: 70%;
-    font-family: monospace;
-    font-size: 1.1em;
-    border-bottom-left-radius: 3px;
-    border-top-right-radius: 3px;
-    box-shadow: 0 2px 6px #fff6b022;
-    animation: fadeIn 0.4s ease-in-out;
-}
-@keyframes fadeIn {from {opacity: 0; transform: translateY(4px);} to {opacity: 1; transform: translateY(0);}}
-.typing {
-    font-family: monospace;
-    color: #12fff7;
-    font-size: 1.05em;
-}
+.typing {font-family: monospace; font-size: 1.05em;}
 .typing span {animation: blink 1s infinite;}
 .typing span:nth-child(2) {animation-delay: 0.2s;}
 .typing span:nth-child(3) {animation-delay: 0.4s;}
@@ -79,24 +128,37 @@ def styled_message(msg, sender):
     )
 
 def stream_gemini_reply(prompt):
-    """Stream response from Gemini word-by-word."""
     API_KEY = st.secrets["GEMINI_API_KEY"]
     os.environ["GOOGLE_API_KEY"] = API_KEY
     genai.configure(api_key=API_KEY)
     model = genai.GenerativeModel(MODEL)
 
-    stream_placeholder = st.empty()
-    full_text = ""
-    with model.stream_generate_content(prompt) as stream:
-        for chunk in stream:
-            if chunk.text:
-                full_text += chunk.text
-                stream_placeholder.markdown(full_text)  # Live update
-                time.sleep(0.015)
-    return full_text.strip()
+    # Try streaming if available
+    if hasattr(model, "stream_generate_content"):
+        stream_placeholder = st.empty()
+        full_text = ""
+        try:
+            with model.stream_generate_content(prompt) as stream:
+                for chunk in stream:
+                    if chunk.text:
+                        full_text += chunk.text
+                        stream_placeholder.markdown(full_text)
+                        time.sleep(TYPING_DELAY)
+            return full_text.strip()
+        except Exception as e:
+            st.warning(f"Streaming failed ({e}), using normal mode...")
+            stream_placeholder.empty()
+
+    # Fallback normal
+    try:
+        chat = model.start_chat()
+        response = chat.send_message(prompt)
+        return response.text.strip() if hasattr(response, "text") else str(response)
+    except Exception as e:
+        raise RuntimeError(f"Failed to get response: {e}")
 
 # ==== HEADER ====
-st.markdown("<h2 style='text-align:center;color:white;'>🤖 Gemini Chatbot</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align:center;'>🤖 Gemini Chatbot</h2>", unsafe_allow_html=True)
 
 # ==== RESET BUTTON ====
 if st.button("♻️ Reset Chat"):
@@ -131,7 +193,7 @@ if send_button and user_input.strip():
     typing_placeholder = st.empty()
     typing_placeholder.markdown('<div class="typing">Gemini is typing<span>.</span><span>.</span><span>.</span></div>', unsafe_allow_html=True)
 
-    # Stream bot reply
+    # Get reply
     reply_text = stream_gemini_reply(user_input)
     typing_placeholder.empty()
 
@@ -140,4 +202,4 @@ if send_button and user_input.strip():
 
     st.session_state.last_request_time = now
     st.session_state.request_count += 1
-        
+    
