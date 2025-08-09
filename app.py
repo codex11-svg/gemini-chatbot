@@ -1,134 +1,124 @@
 import streamlit as st
-import os
-import time
 import google.generativeai as genai
 
-# ==== CONFIG ====
-st.set_page_config(page_title="Gemini Chatbot", layout="wide")
-MODEL = "gemini-pro"
-TYPING_DELAY = 0.03
+# ===================
+# Streamlit Page Config
+# ===================
+st.set_page_config(page_title="Gemini Chatbot", layout="centered")
 
-# ==== SESSION STATE ====
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+# ===================
+# Load API Key
+# ===================
+if "GEMINI_API_KEY" not in st.secrets:
+    st.error("❌ GEMINI_API_KEY not found in Streamlit secrets. Please add it in settings.")
+    st.stop()
 
+API_KEY = st.secrets["GEMINI_API_KEY"]
+genai.configure(api_key=API_KEY)
+
+# ===================
+# Model Name
+# ===================
+MODEL = "gemini-1.5-flash"  # safer default than gemini-pro
+
+# ===================
+# Theme Switching
+# ===================
 if "theme" not in st.session_state:
     st.session_state.theme = "Cyberpunk"
 
-# ==== SIDEBAR THEME SELECT ====
 theme_choice = st.sidebar.selectbox(
     "🎨 Choose Theme",
     ["Cyberpunk", "Minimalist", "Classic"],
     index=["Cyberpunk", "Minimalist", "Classic"].index(st.session_state.theme)
 )
 
-# If theme changed → rerun
 if theme_choice != st.session_state.theme:
     st.session_state.theme = theme_choice
     st.rerun()
 
-
 theme = st.session_state.theme
 
-# ==== THEME CSS ====
-def apply_theme(theme):
-    if theme == "Cyberpunk":
-        st.markdown("""
-            <style>
-                body { background-color: #0a0f1e; color: #00fff7; }
-                .stChatMessage {
-                    background: linear-gradient(145deg, #111827, #0d1b2a);
-                    color: #00fff7;
-                    border-radius: 12px;
-                    padding: 10px;
-                    box-shadow: 0 0 10px #00fff7, 0 0 20px #ff00de;
-                    font-family: monospace;
-                }
-                .stApp { background-color: #0a0f1e; }
-            </style>
-        """, unsafe_allow_html=True)
-    elif theme == "Minimalist":
-        st.markdown("""
-            <style>
-                body { background-color: #ffffff; color: #000000; }
-                .stChatMessage {
-                    background-color: #f3f4f6;
-                    color: #000000;
-                    border-radius: 12px;
-                    padding: 10px;
-                    box-shadow: none;
-                    font-family: sans-serif;
-                }
-                .stApp { background-color: #ffffff; }
-            </style>
-        """, unsafe_allow_html=True)
-    elif theme == "Classic":
-        st.markdown("""
-            <style>
-                body { background-color: #f5f5dc; color: #333333; }
-                .stChatMessage {
-                    background-color: #fff8dc;
-                    color: #333333;
-                    border-radius: 12px;
-                    padding: 10px;
-                    font-family: serif;
-                    box-shadow: inset 0 0 5px #aaa;
-                }
-                .stApp { background-color: #f5f5dc; }
-            </style>
-        """, unsafe_allow_html=True)
+# ===================
+# Theme CSS
+# ===================
+THEMES = {
+    "Cyberpunk": """
+        <style>
+        body { background-color: #0f0f0f; color: #00ff9f; }
+        .stChatMessage { background: #1a1a1a; border-radius: 12px; padding: 8px; }
+        </style>
+    """,
+    "Minimalist": """
+        <style>
+        body { background-color: #ffffff; color: #000000; }
+        .stChatMessage { background: #f5f5f5; border-radius: 12px; padding: 8px; }
+        </style>
+    """,
+    "Classic": """
+        <style>
+        body { background-color: #f0f0f0; color: #333333; }
+        .stChatMessage { background: #ffffff; border-radius: 12px; padding: 8px; }
+        </style>
+    """
+}
 
-apply_theme(theme)
+st.markdown(THEMES[theme], unsafe_allow_html=True)
 
-# ==== GEMINI REPLY FUNCTION ====
+# ===================
+# Session State for Chat
+# ===================
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+# ===================
+# Gemini Response Function
+# ===================
 def stream_gemini_reply(prompt):
-    API_KEY = st.secrets["GEMINI_API_KEY"]
-    os.environ["GOOGLE_API_KEY"] = API_KEY
-    genai.configure(api_key=API_KEY)
-    model = genai.GenerativeModel(MODEL)
-
-    # Try streaming if available
-    if hasattr(model, "stream_generate_content"):
-        placeholder = st.empty()
-        full_text = ""
-        try:
-            with model.stream_generate_content(prompt) as stream:
-                for chunk in stream:
-                    if chunk.text:
-                        full_text += chunk.text
-                        placeholder.markdown(full_text)
-                        time.sleep(TYPING_DELAY)
-            return full_text.strip()
-        except Exception as e:
-            st.warning(f"Streaming failed ({e}), falling back...")
-            placeholder.empty()
-
-    # Fallback
     try:
-        chat = model.start_chat()
-        response = chat.send_message(prompt)
-        return response.text.strip() if hasattr(response, "text") else str(response)
+        model = genai.GenerativeModel(MODEL)
+
+        # Try streaming mode
+        try:
+            response = model.generate_content(prompt, stream=True)
+            reply_text = ""
+            for chunk in response:
+                if hasattr(chunk, "text") and chunk.text:
+                    reply_text += chunk.text
+            return reply_text.strip()
+
+        except TypeError:
+            # Fallback to non-streaming if streaming not supported
+            response = model.generate_content(prompt)
+            return response.text.strip()
+
     except Exception as e:
-        raise RuntimeError(f"Failed to get response: {e}")
+        return f"⚠️ **Error from Gemini API:** {str(e)}"
 
-# ==== CHAT DISPLAY ====
-st.title("🤖 Gemini Chatbot")
+# ===================
+# Show Previous Messages
+# ===================
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
 
-for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
+# ===================
+# Chat Input UI
+# ===================
+with st.form("chat_form", clear_on_submit=True):
+    user_input = st.text_input("Type your message:", key="user_input")
+    send = st.form_submit_button("Send 🚀")
 
-# ==== USER INPUT ====
-user_input = st.chat_input("Type your message...")
-
-if user_input:
+if send and user_input:
+    # Show user message
     st.session_state.messages.append({"role": "user", "content": user_input})
     with st.chat_message("user"):
         st.markdown(user_input)
 
-    with st.chat_message("assistant"):
-        reply_text = stream_gemini_reply(user_input)
-        st.markdown(reply_text)
+    # Get model reply
+    reply_text = stream_gemini_reply(user_input)
 
+    # Show assistant message
     st.session_state.messages.append({"role": "assistant", "content": reply_text})
-    
+    with st.chat_message("assistant"):
+        st.markdown(reply_text)
