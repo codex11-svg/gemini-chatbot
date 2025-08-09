@@ -31,7 +31,8 @@ if not st.session_state.logged_in:
     username = st.text_input("Username")
     password = st.text_input("Password", type="password")
     if st.button("Login"):
-        if username == st.secrets.get("CHAT_USERNAME", "admin") and password == st.secrets.get("CHAT_PASSWORD", "1234"):
+        if username in st.secrets.get("CHAT_USERNAMES", ["admin"]) and password == st.secrets.get("CHAT_PASSWORD", "1234"):
+
             st.session_state.logged_in = True
             st.rerun()
         else:
