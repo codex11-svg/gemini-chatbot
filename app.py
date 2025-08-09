@@ -2,35 +2,45 @@ import streamlit as st
 import google.generativeai as genai
 import re
 import time
-from html import escape
+import pyperclip
 
-# ---------- CONFIG ----------
-st.set_page_config(page_title="Cyberpunk AI Chat", page_icon="🤖", layout="centered")
-
-# Load secrets
-API_KEY = st.secrets["GEMINI_API_KEY"]
-ALLOWED_USERS = st.secrets["CHAT_USERNAMES"]
-PASSWORD = st.secrets["CHAT_PASSWORD"]
-
-# Configure Gemini
-genai.configure(api_key=API_KEY)
-model = genai.GenerativeModel("gemini-pro")
-
-# ---------- CYBERPUNK CSS ----------
+# ========================
+# Cyberpunk Theme CSS
+# ========================
 CYBERPUNK_CSS = """
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
 <style>
-body {
+html, body, [class*="stApp"] {
     margin: 0;
+    font-family: 'Orbitron', sans-serif !important;
     background: linear-gradient(270deg, #0f0c29, #302b63, #24243e);
     background-size: 600% 600%;
     animation: gradientShift 20s ease infinite;
-    font-family: 'Orbitron', sans-serif;
-    color: #fff;
+    color: #fff !important;
 }
 @keyframes gradientShift {
     0% { background-position: 0% 50%; }
     50% { background-position: 100% 50%; }
     100% { background-position: 0% 50%; }
+}
+.stTextInput > div > div > input, .stPasswordInput > div > div > input {
+    background: rgba(0,0,0,0.6);
+    color: cyan !important;
+    border: 1px solid cyan;
+    border-radius: 8px;
+}
+.stButton > button {
+    background: rgba(0,255,255,0.1);
+    border: 1px solid cyan;
+    color: cyan;
+    font-weight: bold;
+    border-radius: 8px;
+    padding: 8px 16px;
+    transition: all 0.3s ease;
+}
+.stButton > button:hover {
+    background: rgba(0,255,255,0.3);
+    box-shadow: 0 0 10px cyan;
 }
 .chat-container {
     max-width: 800px;
@@ -56,7 +66,19 @@ body {
     background: rgba(0, 200, 255, 0.15);
     border: 1px solid rgba(0, 200, 255, 0.4);
 }
+.code-block {
+    background: rgba(0, 0, 0, 0.7);
+    border: 1px solid cyan;
+    padding: 12px;
+    border-radius: 8px;
+    font-family: monospace;
+    white-space: pre-wrap;
+    position: relative;
+}
 .copy-btn {
+    position: absolute;
+    top: 5px;
+    right: 5px;
     background: rgba(0, 255, 255, 0.2);
     border: none;
     color: cyan;
@@ -64,7 +86,6 @@ body {
     font-size: 12px;
     border-radius: 6px;
     cursor: pointer;
-    float: right;
 }
 .copy-btn:hover {
     background: rgba(0, 255, 255, 0.35);
@@ -76,70 +97,111 @@ body {
 </style>
 """
 
-# ---------- LOGIN ----------
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
+# ========================
+# Config
+# ========================
+st.set_page_config(page_title="Cyberpunk AI Chat", page_icon="🤖", layout="wide")
+st.markdown(CYBERPUNK_CSS, unsafe_allow_html=True)
 
-if not st.session_state.logged_in:
-    st.markdown(CYBERPUNK_CSS, unsafe_allow_html=True)
-    st.markdown("<h1 style='text-align:center;color:cyan;'>🔐 Cyberpunk AI Login</h1>", unsafe_allow_html=True)
-    username = st.text_input("Username")
-    password = st.text_input("Password", type="password")
-    if st.button("Login", use_container_width=True):
-        if username in ALLOWED_USERS and password == PASSWORD:
-            st.session_state.logged_in = True
-            st.success("Access Granted ✅")
-            st.experimental_rerun()
-        else:
-            st.error("❌ Invalid credentials")
-    st.stop()
+genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+CHAT_USERNAMES = st.secrets["CHAT_USERNAMES"]
+CHAT_PASSWORD = st.secrets["CHAT_PASSWORD"]
 
-# ---------- CHAT ----------
+# ========================
+# Session States
+# ========================
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-st.markdown(CYBERPUNK_CSS, unsafe_allow_html=True)
-st.markdown("<h1 style='text-align:center;color:cyan;'>🤖 Cyberpunk AI Chat</h1>", unsafe_allow_html=True)
+# ========================
+# Login Page
+# ========================
+def login():
+    st.title("🔐 Cyberpunk AI Login")
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
+    if st.button("Login"):
+        if username in CHAT_USERNAMES and password == CHAT_PASSWORD:
+            st.session_state.authenticated = True
+            st.experimental_rerun()
+        else:
+            st.error("Invalid username or password")
 
-with st.container():
-    st.markdown("<div class='chat-container'>", unsafe_allow_html=True)
+# ========================
+# AI Reply Generator
+# ========================
+def stream_gemini_reply(prompt):
+    model = genai.GenerativeModel("gemini-pro")
+    response = model.generate_content(prompt)
+    return response.text
 
+# ========================
+# Typewriter Effect with Code Block Handling
+# ========================
+def display_message_with_code_support(message):
+    code_blocks = re.findall(r"```(.*?)```", message, re.DOTALL)
+    text_parts = re.split(r"```.*?```", message, flags=re.DOTALL)
+
+    for i, part in enumerate(text_parts):
+        if part.strip():
+            typewriter_effect(part.strip())
+        if i < len(code_blocks):
+            code = code_blocks[i].strip()
+            show_code_block(code)
+
+def typewriter_effect(text):
+    placeholder = st.empty()
+    words = text.split(" ")
+    output = ""
+    for w in words:
+        output += w + " "
+        placeholder.markdown(output)
+        time.sleep(0.05)
+
+def show_code_block(code):
+    st.markdown(
+        f"""
+        <div class="code-block">
+            <button class="copy-btn" onclick="navigator.clipboard.writeText(`{code}`)">Copy</button>
+            <pre>{code}</pre>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+# ========================
+# Main Chat UI
+# ========================
+def chat_ui():
+    st.markdown('<div class="chat-container">', unsafe_allow_html=True)
+    st.title("💬 Cyberpunk AI Chatbot")
+    
     for msg in st.session_state.messages:
         role_class = "user-message" if msg["role"] == "user" else "bot-message"
-        if msg["role"] == "bot" and msg.get("is_code"):
-            st.markdown(f"<div class='message {role_class}'><pre><code>{escape(msg['content'])}</code></pre><button class='copy-btn' onclick='navigator.clipboard.writeText(`{escape(msg['content'])}`)'>Copy</button></div>", unsafe_allow_html=True)
+        st.markdown(f'<div class="message {role_class}">', unsafe_allow_html=True)
+        if msg["role"] == "bot":
+            display_message_with_code_support(msg["content"])
         else:
-            st.markdown(f"<div class='message {role_class}'>{escape(msg['content'])}</div>", unsafe_allow_html=True)
-
-    st.markdown("</div>", unsafe_allow_html=True)
-
-# ---------- INPUT ----------
-user_input = st.chat_input("Type your message...")
-if user_input:
-    # Store user message
-    st.session_state.messages.append({"role": "user", "content": user_input})
-    st.experimental_rerun()
-
-# If last message is user -> get AI reply
-if st.session_state.messages and st.session_state.messages[-1]["role"] == "user":
-    user_msg = st.session_state.messages[-1]["content"]
-    bot_msg = ""
-    placeholder = st.empty()
-
-    try:
-        response = model.generate_content(user_msg, stream=True)
-        for chunk in response:
-            if chunk.text:
-                words = chunk.text.split()
-                for w in words:
-                    bot_msg += w + " "
-                    placeholder.markdown(f"<div class='message bot-message'>{escape(bot_msg)}</div>", unsafe_allow_html=True)
-                    time.sleep(0.05)  # word-by-word delay
-        # Detect if code
-        is_code = bool(re.search(r"```[\s\S]*```", bot_msg))
-        st.session_state.messages.append({"role": "bot", "content": bot_msg.strip(), "is_code": is_code})
+            st.markdown(msg["content"])
+        st.markdown('</div>', unsafe_allow_html=True)
+    
+    user_input = st.text_input("Type your message...")
+    if st.button("Send") and user_input.strip():
+        st.session_state.messages.append({"role": "user", "content": user_input})
+        reply = stream_gemini_reply(user_input)
+        st.session_state.messages.append({"role": "bot", "content": reply})
         st.experimental_rerun()
-    except Exception as e:
-        st.session_state.messages.append({"role": "bot", "content": f"⚠️ Error: {str(e)}"})
-        st.experimental_rerun()
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# ========================
+# App Logic
+# ========================
+if not st.session_state.authenticated:
+    login()
+else:
+    chat_ui()
+    
                 
