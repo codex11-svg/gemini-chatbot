@@ -35,29 +35,45 @@ if theme_choice != st.session_state.theme:
     st.session_state.theme = theme_choice
     st.rerun()
 
+# ===================
+# Improved Themes + Fade Animation
+# ===================
+FADE_ANIM = """
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .chat-bubble {
+        animation: fadeIn 0.4s ease forwards;
+    }
+"""
+
 THEMES = {
-    "Cyberpunk": """
+    "Cyberpunk": f"""
         <style>
-        body { background: linear-gradient(135deg, #0f0f0f, #1a0033); color: #00ffcc; font-family: 'Segoe UI', sans-serif; }
-        .chat-bubble { background: rgba(0,255,204,0.07); border: 1px solid #00ffcc; box-shadow: 0 0 15px rgba(0,255,204,0.4); }
-        .stTextInput>div>div>input { background: rgba(0,0,0,0.5); color: #00ffcc; border-radius: 25px; padding: 12px; border: 1px solid #00ffcc; transition: all 0.3s ease; }
-        .stTextInput>div>div>input:focus { box-shadow: 0 0 15px #00ffcc; }
+        {FADE_ANIM}
+        body {{ background: linear-gradient(135deg, #0f0f0f, #1a0033); color: #00ffcc; font-family: 'Segoe UI', sans-serif; }}
+        .chat-bubble {{ background: rgba(0,255,204,0.07); border: 1px solid #00ffcc; box-shadow: 0 0 15px rgba(0,255,204,0.4); border-radius: 15px; padding: 12px; margin: 6px; max-width: 80%; }}
+        .stTextInput>div>div>input {{ background: rgba(0,0,0,0.5); color: #00ffcc; border-radius: 25px; padding: 12px; border: 1px solid #00ffcc; transition: all 0.3s ease; }}
+        .stTextInput>div>div>input:focus {{ box-shadow: 0 0 15px #00ffcc; }}
         </style>
     """,
-    "Minimalist": """
+    "Minimalist": f"""
         <style>
-        body { background-color: #f9f9f9; color: #222; font-family: 'Segoe UI', sans-serif; }
-        .chat-bubble { background: white; border: 1px solid #ddd; box-shadow: 0 2px 6px rgba(0,0,0,0.05); }
-        .stTextInput>div>div>input { background: white; color: #222; border-radius: 25px; padding: 12px; border: 1px solid #ccc; transition: all 0.3s ease; }
-        .stTextInput>div>div>input:focus { border-color: #4a90e2; box-shadow: 0 0 10px rgba(74,144,226,0.5); }
+        {FADE_ANIM}
+        body {{ background: linear-gradient(180deg, #ffffff, #f4f7fb); color: #222; font-family: 'Segoe UI', sans-serif; }}
+        .chat-bubble {{ background: rgba(255,255,255,0.85); backdrop-filter: blur(8px); border: 1px solid rgba(0,0,0,0.05); box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-radius: 15px; padding: 12px; margin: 6px; max-width: 80%; }}
+        .stTextInput>div>div>input {{ background: rgba(255,255,255,0.9); backdrop-filter: blur(6px); color: #222; border-radius: 25px; padding: 12px; border: 1px solid #ccc; transition: all 0.3s ease; }}
+        .stTextInput>div>div>input:focus {{ border-color: #4a90e2; box-shadow: 0 0 10px rgba(74,144,226,0.3); }}
         </style>
     """,
-    "Classic": """
+    "Classic": f"""
         <style>
-        body { background-color: #ececec; color: #2b2b2b; font-family: 'Georgia', serif; }
-        .chat-bubble { background: #fff8f0; border: 1px solid #ccc; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-        .stTextInput>div>div>input { background: white; color: #2b2b2b; border-radius: 25px; padding: 12px; border: 1px solid #bbb; transition: all 0.3s ease; }
-        .stTextInput>div>div>input:focus { border-color: #a67c52; box-shadow: 0 0 10px rgba(166,124,82,0.5); }
+        {FADE_ANIM}
+        body {{ background: linear-gradient(180deg, #fdf6e3, #f4e1c1); color: #2b2b2b; font-family: 'Georgia', serif; }}
+        .chat-bubble {{ background: #fff8f0; border: 1px solid #d1b894; box-shadow: 0 2px 8px rgba(0,0,0,0.1), inset 0 1px 0 #fff; border-radius: 15px; padding: 12px; margin: 6px; max-width: 80%; }}
+        .stTextInput>div>div>input {{ background: #fffdf8; color: #2b2b2b; border-radius: 25px; padding: 12px; border: 1px solid #a67c52; transition: all 0.3s ease; }}
+        .stTextInput>div>div>input:focus {{ border-color: #a67c52; box-shadow: 0 0 12px rgba(166,124,82,0.4); }}
         </style>
     """
 }
@@ -84,17 +100,16 @@ def stream_gemini_reply(prompt):
                 if hasattr(chunk, "text") and chunk.text:
                     reply_text += chunk.text
                     placeholder.markdown(
-                        f"<div class='chat-bubble' style='padding:12px; margin:6px; border-radius:15px; max-width:80%;'><b>🤖</b> {reply_text}▌</div>",
+                        f"<div class='chat-bubble'><b>🤖</b> {reply_text}▌</div>",
                         unsafe_allow_html=True
                     )
                     time.sleep(0.02)
             placeholder.markdown(
-                f"<div class='chat-bubble' style='padding:12px; margin:6px; border-radius:15px; max-width:80%;'><b>🤖</b> {reply_text}</div>",
+                f"<div class='chat-bubble'><b>🤖</b> {reply_text}</div>",
                 unsafe_allow_html=True
             )
             return reply_text.strip()
         except TypeError:
-            # Fallback if streaming unsupported
             response = model.generate_content(prompt)
             return response.text.strip()
     except Exception as e:
@@ -105,11 +120,10 @@ def stream_gemini_reply(prompt):
 # ===================
 for message in st.session_state.messages:
     avatar = "👤" if message["role"] == "user" else "🤖"
-    with st.container():
-        st.markdown(
-            f"<div class='chat-bubble' style='padding:12px; margin:6px; border-radius:15px; max-width:80%;'><b>{avatar}</b> {message['content']}</div>",
-            unsafe_allow_html=True
-        )
+    st.markdown(
+        f"<div class='chat-bubble'><b>{avatar}</b> {message['content']}</div>",
+        unsafe_allow_html=True
+    )
 
 # ===================
 # Chat Input
@@ -119,11 +133,8 @@ with st.form("chat_form", clear_on_submit=True):
     send = st.form_submit_button("Send 🚀")
 
 if send and user_input:
-    # User message
     st.session_state.messages.append({"role": "user", "content": user_input})
-
-    # Bot reply (streamed)
     reply_text = stream_gemini_reply(user_input)
     st.session_state.messages.append({"role": "assistant", "content": reply_text})
-
     st.rerun()
+    
