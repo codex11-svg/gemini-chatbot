@@ -1,11 +1,9 @@
 import streamlit as st
 import google.generativeai as genai
-import re
 import time
+import json
 
-# ========================
-# Cyberpunk Theme CSS
-# ========================
+# ---- Cyberpunk Theme CSS ----
 CYBERPUNK_CSS = """
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
 <style>
@@ -56,6 +54,7 @@ html, body, [class*="stApp"] {
     border-radius: 12px;
     margin-bottom: 12px;
     animation: fadeIn 0.3s ease;
+    word-break: break-word;
 }
 .user-message {
     background: rgba(0, 255, 150, 0.15);
@@ -82,6 +81,10 @@ html, body, [class*="stApp"] {
     from { opacity: 0; transform: translateY(5px); }
     to { opacity: 1; transform: translateY(0); }
 }
+.blink {
+    animation: blinker 1s linear infinite;
+}
+@keyframes blinker { 50% { opacity: 0.4; } }
 </style>
 <script>
 function copyToClipboard(text) {
@@ -90,19 +93,13 @@ function copyToClipboard(text) {
 </script>
 """
 
-# ========================
-# Authentication
-# ========================
-VALID_USERS = {
-    "admin": "1126",
-    "Nihal": "1126",
-    "nihal": "1126",
-    "Zainab": "1126",
-    "zainab": "1126"
-}
-
+# ---- Page Configuration and CSS ----
 st.set_page_config(page_title="Cyberpunk Chatbot", layout="wide")
 st.markdown(CYBERPUNK_CSS, unsafe_allow_html=True)
+
+# ---- Secure Authentication (using VALID_USERS from secrets) ----
+import json
+VALID_USERS = json.loads(st.secrets["VALID_USERS"])
 
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
@@ -119,28 +116,33 @@ if not st.session_state.authenticated:
             st.error("Invalid username or password.")
     st.stop()
 
-# ========================
-# Chatbot Setup
-# ========================
+# ---- Gemini API Key from Secrets ----
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 model = genai.GenerativeModel("gemini-pro")
 
+# ---- Chat State ----
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
+st.markdown('<h1 style="font-family:Orbitron,sans-serif;text-align:center;color:cyan;">🤖 Cyberpunk Gemini Chatbot</h1>', unsafe_allow_html=True)
 st.markdown('<div class="chat-container">', unsafe_allow_html=True)
 
-# Display past messages
+# ---- Display past messages with copy button ----
 for msg in st.session_state.messages:
     role_class = "user-message" if msg["role"] == "user" else "bot-message"
-    copy_button = f'<button class="copy-btn" onclick="copyToClipboard(`{msg["content"]}`)">Copy</button>' if msg["role"] == "assistant" else ""
+    copy_button = f'<button class="copy-btn" onclick="navigator.clipboard.writeText(`{msg["content"].replace("`","\\`")}`)">Copy</button>' if msg["role"] == "assistant" else ""
     st.markdown(f'<div class="message {role_class}">{copy_button}{msg["content"]}</div>', unsafe_allow_html=True)
 
-# ========================
-# Input + AI reply
-# ========================
+# ---- Input Field ----
 user_input = st.text_input("Type your message...", key="user_input", placeholder="Ask me anything...")
 
+# ---- Typing Indicator ----
+def show_typing():
+    st.markdown(
+        '<div class="message bot-message"><span class="blink">Gemini is typing<span>.</span><span>.</span><span>.</span></span></div>',
+        unsafe_allow_html=True)
+
+# ---- Stream bot reply ----
 def stream_reply(prompt):
     response = model.generate_content(prompt)
     text = response.text
@@ -150,13 +152,17 @@ def stream_reply(prompt):
     for word in words:
         displayed += word + " "
         placeholder.markdown(f'<div class="message bot-message">{displayed}</div>', unsafe_allow_html=True)
-        time.sleep(0.05)
+        time.sleep(0.035)
     return text
 
+# ---- On new user message ----
 if user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
+    # typing effect
+    show_typing()
+    # generate and stream reply
     ai_reply = stream_reply(user_input)
     st.session_state.messages.append({"role": "assistant", "content": ai_reply})
-    st.experimental_rerun()
+    st.experimental_rerun()  # refresh to show message history
 
 st.markdown('</div>', unsafe_allow_html=True)
