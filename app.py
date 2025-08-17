@@ -89,8 +89,9 @@ st.set_page_config(page_title="Cyberpunk Gemini Chatbot", layout="wide")
 st.markdown(CYBERPUNK_CSS, unsafe_allow_html=True)
 
 # --- Gemini Setup (API Key from Secrets) ----
-genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-model = genai.GenerativeModel("gemini-pro")
+GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
+genai.configure(api_key=GEMINI_API_KEY)
+model = genai.GenerativeModel("gemini-2.5-flash")
 
 # --- Chat State ----
 if "messages" not in st.session_state:
@@ -114,8 +115,8 @@ def show_typing():
     )
 
 def stream_reply(prompt):
-    response = model.generate_content(prompt)
-    text = response.text
+    response = model.generate_content([prompt])  # note: pass prompt as a list!
+    text = getattr(response, "text", None) or str(response)
     words = text.split()
     displayed = ""
     placeholder = st.empty()
