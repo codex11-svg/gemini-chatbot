@@ -93,7 +93,7 @@ st.markdown(CYBERPUNK_CSS, unsafe_allow_html=True)
 
 # ----- Gemini Setup (API Key from Secrets) ------
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-model = genai.GenerativeModel("gemini-pro")
+model = genai.GenerativeModel("gemini-pro")  # <--- Correct model for all public Gemini keys
 
 # ----- Chat State -----
 if "messages" not in st.session_state:
