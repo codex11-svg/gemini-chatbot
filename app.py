@@ -2,8 +2,8 @@ import streamlit as st
 import google.generativeai as genai
 import time
 
-# -- Cyberpunk Theme --
-st.markdown("""
+# ---- Cyberpunk theme ----
+CYBERPUNK_CSS = """
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
 <style>
 html, body, [class*="stApp"] {
@@ -24,41 +24,113 @@ html, body, [class*="stApp"] {
     border: 1px solid cyan;
     border-radius: 8px;
 }
+.stButton > button {
+    background: rgba(0,255,255,0.1);
+    border: 1px solid cyan;
+    color: cyan;
+    font-weight: bold;
+    border-radius: 8px;
+    padding: 8px 16px;
+    transition: all 0.3s ease;
+}
+.stButton > button:hover {
+    background: rgba(0,255,255,0.3);
+    box-shadow: 0 0 10px cyan;
+}
+.chat-container {
+    max-width: 800px;
+    margin: auto;
+    background: rgba(25, 25, 35, 0.85);
+    border: 1px solid rgba(0, 255, 255, 0.4);
+    border-radius: 15px;
+    padding: 20px;
+    box-shadow: 0 0 25px rgba(0, 255, 255, 0.3);
+}
+.message {
+    padding: 12px 16px;
+    border-radius: 12px;
+    margin-bottom: 12px;
+    animation: fadeIn 0.3s ease;
+    word-break: break-word;
+}
+.user-message {
+    background: rgba(0,255,150,0.15);
+    border: 1px solid rgba(0,255,150,0.4);
+}
+.bot-message {
+    background: rgba(0,200,255,0.15);
+    border: 1px solid rgba(0,200,255,0.4);
+}
+.copy-btn {
+    background: rgba(0,255,255,0.2);
+    border: none;
+    color: cyan;
+    padding: 3px 8px;
+    font-size: 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    float: right;
+}
+.copy-btn:hover {
+    background: rgba(0,255,255,0.35);
+}
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.blink {
+    animation: blinker 1s linear infinite;
+}
+@keyframes blinker { 50% { opacity: 0.4; } }
 </style>
-""", unsafe_allow_html=True)
+"""
 
 st.set_page_config(page_title="Cyberpunk Gemini Chatbot", layout="wide")
+st.markdown(CYBERPUNK_CSS, unsafe_allow_html=True)
 
-# -- Configure Gemini --
+# --- Gemini Setup (API Key from Secrets) ----
 GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel("gemini-2.5-flash")  # <- use this (if works in your environment)
+model = genai.GenerativeModel("gemini-2.5-flash")
 
-if "chat" not in st.session_state:
-    st.session_state.chat = []
+# --- Chat State ----
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
-st.title("🤖 Cyberpunk Gemini Chatbot")
-st.markdown("<div style='max-width:700px;margin:auto;'>",unsafe_allow_html=True)
+st.markdown('<h1 style="font-family:Orbitron,sans-serif;text-align:center;color:cyan;">🤖 Cyberpunk Gemini Chatbot</h1>', unsafe_allow_html=True)
+st.markdown('<div class="chat-container">', unsafe_allow_html=True)
 
-for turn in st.session_state.chat:
-    if turn['role'] == 'user':
-        st.markdown(f"<div style='background:#222;border-radius:7px;padding:8px 13px;color:#28f6bf;margin-bottom:8px;'>{turn['content']}</div>", unsafe_allow_html=True)
-    else:
-        st.markdown(f"<div style='background:#23314B;border-radius:7px;padding:8px 13px;color:#20ddff;margin-bottom:14px;'>{turn['content']}</div>", unsafe_allow_html=True)
+for msg in st.session_state.messages:
+    role_class = "user-message" if msg["role"] == "user" else "bot-message"
+    content_safe = msg["content"].replace("`", "\\`")
+    copy_button = f'<button class="copy-btn" onclick="navigator.clipboard.writeText(`{content_safe}`)">Copy</button>' if msg["role"] == "assistant" else ""
+    st.markdown(f'<div class="message {role_class}">{copy_button}{msg["content"]}</div>', unsafe_allow_html=True)
 
-user_input = st.text_input("Type a message and press Enter...", key="user_input", placeholder="Say hi to Gemini!")
+user_input = st.text_input("Type your message...", key="user_input", placeholder="Ask me anything...")
+
+def show_typing():
+    st.markdown(
+        '<div class="message bot-message"><span class="blink">Gemini is typing<span>.</span><span>.</span><span>.</span></span></div>',
+        unsafe_allow_html=True
+    )
+
+def stream_reply(prompt):
+    response = model.generate_content([prompt])  # note: pass prompt as a list!
+    text = getattr(response, "text", None) or str(response)
+    words = text.split()
+    displayed = ""
+    placeholder = st.empty()
+    for word in words:
+        displayed += word + " "
+        placeholder.markdown(f'<div class="message bot-message">{displayed}</div>', unsafe_allow_html=True)
+        time.sleep(0.035)
+    return text
 
 if user_input:
-    st.session_state.chat.append({"role":"user", "content":user_input})
-    wait_msg = st.empty()
-    wait_msg.markdown("<span style='color:#19f9d8;'>Gemini is typing ...</span>", unsafe_allow_html=True)
-    try:
-        response = model.generate_content([user_input])
-        ai_msg = getattr(response, "text", None) or str(response)
-    except Exception as e:
-        ai_msg = f"Error: {e}"
-    wait_msg.empty()
-    st.session_state.chat.append({"role":"bot","content":ai_msg})
+    st.session_state.messages.append({"role": "user", "content": user_input})
+    show_typing()
+    ai_reply = stream_reply(user_input)
+    st.session_state.messages.append({"role": "assistant", "content": ai_reply})
     st.experimental_rerun()
 
-st.markdown("</div>",unsafe_allow_html=True)
+st.markdown('</div>', unsafe_allow_html=True)
