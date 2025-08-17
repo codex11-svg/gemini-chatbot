@@ -2,12 +2,11 @@ import streamlit as st
 import google.generativeai as genai
 import time
 
-# --------- Cyberpunk Theme CSS ----------
+# ---- Cyberpunk theme ----
 CYBERPUNK_CSS = """
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
 <style>
 html, body, [class*="stApp"] {
-    margin: 0;
     font-family: 'Orbitron', sans-serif !important;
     background: linear-gradient(270deg, #0f0c29, #302b63, #24243e);
     background-size: 600% 600%;
@@ -42,7 +41,6 @@ html, body, [class*="stApp"] {
     max-width: 800px;
     margin: auto;
     background: rgba(25, 25, 35, 0.85);
-    backdrop-filter: blur(12px);
     border: 1px solid rgba(0, 255, 255, 0.4);
     border-radius: 15px;
     padding: 20px;
@@ -56,15 +54,15 @@ html, body, [class*="stApp"] {
     word-break: break-word;
 }
 .user-message {
-    background: rgba(0, 255, 150, 0.15);
-    border: 1px solid rgba(0, 255, 150, 0.4);
+    background: rgba(0,255,150,0.15);
+    border: 1px solid rgba(0,255,150,0.4);
 }
 .bot-message {
-    background: rgba(0, 200, 255, 0.15);
-    border: 1px solid rgba(0, 200, 255, 0.4);
+    background: rgba(0,200,255,0.15);
+    border: 1px solid rgba(0,200,255,0.4);
 }
 .copy-btn {
-    background: rgba(0, 255, 255, 0.2);
+    background: rgba(0,255,255,0.2);
     border: none;
     color: cyan;
     padding: 3px 8px;
@@ -74,7 +72,7 @@ html, body, [class*="stApp"] {
     float: right;
 }
 .copy-btn:hover {
-    background: rgba(0, 255, 255, 0.35);
+    background: rgba(0,255,255,0.35);
 }
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(5px); }
@@ -87,38 +85,34 @@ html, body, [class*="stApp"] {
 </style>
 """
 
-# ----- Page Config -----
-st.set_page_config(page_title="Cyberpunk Chatbot", layout="wide")
+st.set_page_config(page_title="Cyberpunk Gemini Chatbot", layout="wide")
 st.markdown(CYBERPUNK_CSS, unsafe_allow_html=True)
 
-# ----- Gemini Setup (API Key from Secrets) ------
+# --- Gemini Setup (API Key from Secrets) ----
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-model = genai.GenerativeModel("gemini-pro")  # <--- Correct model for all public Gemini keys
+model = genai.GenerativeModel("gemini-pro")
 
-# ----- Chat State -----
+# --- Chat State ----
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
 st.markdown('<h1 style="font-family:Orbitron,sans-serif;text-align:center;color:cyan;">🤖 Cyberpunk Gemini Chatbot</h1>', unsafe_allow_html=True)
 st.markdown('<div class="chat-container">', unsafe_allow_html=True)
 
-# ----- Display past messages -----
 for msg in st.session_state.messages:
     role_class = "user-message" if msg["role"] == "user" else "bot-message"
     content_safe = msg["content"].replace("`", "\\`")
     copy_button = f'<button class="copy-btn" onclick="navigator.clipboard.writeText(`{content_safe}`)">Copy</button>' if msg["role"] == "assistant" else ""
     st.markdown(f'<div class="message {role_class}">{copy_button}{msg["content"]}</div>', unsafe_allow_html=True)
 
-# ----- Input Field -----
 user_input = st.text_input("Type your message...", key="user_input", placeholder="Ask me anything...")
 
-# ----- Typing Indicator -----
 def show_typing():
     st.markdown(
         '<div class="message bot-message"><span class="blink">Gemini is typing<span>.</span><span>.</span><span>.</span></span></div>',
-        unsafe_allow_html=True)
+        unsafe_allow_html=True
+    )
 
-# ----- Stream bot reply -----
 def stream_reply(prompt):
     response = model.generate_content(prompt)
     text = response.text
