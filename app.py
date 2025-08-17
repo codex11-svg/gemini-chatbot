@@ -1,9 +1,8 @@
 import streamlit as st
 import google.generativeai as genai
 import time
-import json
 
-# -------- Cyberpunk Theme CSS ----------
+# --------- Cyberpunk Theme CSS ----------
 CYBERPUNK_CSS = """
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
 <style>
@@ -20,7 +19,7 @@ html, body, [class*="stApp"] {
     50% { background-position: 100% 50%; }
     100% { background-position: 0% 50%; }
 }
-.stTextInput > div > div > input, .stPasswordInput > div > div > input {
+.stTextInput > div > div > input {
     background: rgba(0,0,0,0.6);
     color: cyan !important;
     border: 1px solid cyan;
@@ -88,57 +87,38 @@ html, body, [class*="stApp"] {
 </style>
 """
 
-# -------- Page Configuration and CSS -----
+# ----- Page Config -----
 st.set_page_config(page_title="Cyberpunk Chatbot", layout="wide")
 st.markdown(CYBERPUNK_CSS, unsafe_allow_html=True)
 
-# -------- Secure Authentication (from Secrets) --------
-VALID_USERS = json.loads(st.secrets["VALID_USERS"])
-
-if "authenticated" not in st.session_state:
-    st.session_state.authenticated = False
-
-if not st.session_state.authenticated:
-    st.title("🔐 Cyberpunk Login")
-    username = st.text_input("Username")
-    password = st.text_input("Password", type="password")
-    if st.button("Login"):
-        if username in VALID_USERS and VALID_USERS[username] == password:
-            st.session_state.authenticated = True
-            st.experimental_rerun()
-        else:
-            st.error("Invalid username or password.")
-    st.stop()
-
-# -------- Gemini Setup (API Key from Secrets) ---------
+# ----- Gemini Setup (API Key from Secrets) ------
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 model = genai.GenerativeModel("gemini-pro")
 
-# -------- Chat State --------
+# ----- Chat State -----
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
 st.markdown('<h1 style="font-family:Orbitron,sans-serif;text-align:center;color:cyan;">🤖 Cyberpunk Gemini Chatbot</h1>', unsafe_allow_html=True)
 st.markdown('<div class="chat-container">', unsafe_allow_html=True)
 
-# -------- Display past messages with copy button -------
+# ----- Display past messages -----
 for msg in st.session_state.messages:
     role_class = "user-message" if msg["role"] == "user" else "bot-message"
-    # Proper escape of backticks so JS works!
     content_safe = msg["content"].replace("`", "\\`")
     copy_button = f'<button class="copy-btn" onclick="navigator.clipboard.writeText(`{content_safe}`)">Copy</button>' if msg["role"] == "assistant" else ""
     st.markdown(f'<div class="message {role_class}">{copy_button}{msg["content"]}</div>', unsafe_allow_html=True)
 
-# -------- Input Field -------
+# ----- Input Field -----
 user_input = st.text_input("Type your message...", key="user_input", placeholder="Ask me anything...")
 
-# -------- Typing Indicator --------
+# ----- Typing Indicator -----
 def show_typing():
     st.markdown(
         '<div class="message bot-message"><span class="blink">Gemini is typing<span>.</span><span>.</span><span>.</span></span></div>',
         unsafe_allow_html=True)
 
-# -------- Stream bot reply --------
+# ----- Stream bot reply -----
 def stream_reply(prompt):
     response = model.generate_content(prompt)
     text = response.text
@@ -156,6 +136,6 @@ if user_input:
     show_typing()
     ai_reply = stream_reply(user_input)
     st.session_state.messages.append({"role": "assistant", "content": ai_reply})
-    st.experimental_rerun()  # refresh to show updated chat
+    st.experimental_rerun()
 
 st.markdown('</div>', unsafe_allow_html=True)
